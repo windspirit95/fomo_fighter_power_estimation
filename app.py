@@ -139,7 +139,7 @@ else:
         # Lite mode: Total power input
         if st.session_state.calc_mode == 'Lite':
             st.number_input(
-                "Total Clan Power (before bias)", 
+                "Total Clan Power", 
                 min_value=0, 
                 value=st.session_state.clan1_total_power,
                 key="clan1_total_input",
@@ -281,7 +281,7 @@ else:
         # Lite mode: Total power input
         if st.session_state.calc_mode == 'Lite':
             st.number_input(
-                "Total Clan Power (before bias)", 
+                "Total Clan Power", 
                 min_value=0, 
                 value=st.session_state.clan2_total_power,
                 key="clan2_total_input",
