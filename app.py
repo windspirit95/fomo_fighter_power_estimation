@@ -13,10 +13,6 @@ if 'clan2_members' not in st.session_state:
     st.session_state.clan2_members = []
 if 'clan1_mode' not in st.session_state:
     st.session_state.clan1_mode = 'ATK'
-if 'edit_mode_clan1' not in st.session_state:
-    st.session_state.edit_mode_clan1 = {}
-if 'edit_mode_clan2' not in st.session_state:
-    st.session_state.edit_mode_clan2 = {}
 
 # Login credentials
 ADMIN_ID = "admin"
@@ -98,82 +94,70 @@ else:
         
         # Add member form
         with st.expander("➕ Add New Member"):
-            race1 = st.selectbox("Race", ["Dog", "Cat", "Frog"], key="race1")
-            power1 = st.number_input("Power", min_value=1, value=100, key="power1")
-            level1 = st.number_input("Level", min_value=1, value=1, key="level1")
-            
-            if st.button("Add to Clan 1", use_container_width=True):
-                st.session_state.clan1_members.append({
-                    'race': race1,
-                    'power': power1,
-                    'level': level1
-                })
-                st.success(f"Added {race1} to Clan 1!")
-                st.rerun()
+            c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
+            with c1:
+                race1 = st.selectbox("Race", ["Dog", "Cat", "Frog"], key="race1")
+            with c2:
+                power1 = st.number_input("Power", min_value=1, value=100, key="power1")
+            with c3:
+                level1 = st.number_input("Level", min_value=1, value=1, key="level1")
+            with c4:
+                st.write("")
+                st.write("")
+                if st.button("Add", use_container_width=True, key="add1"):
+                    st.session_state.clan1_members.append({
+                        'race': race1,
+                        'power': power1,
+                        'level': level1
+                    })
+                    st.rerun()
         
-        # Display members with edit/delete
+        # Display members table
         if st.session_state.clan1_members:
+            st.markdown("#### Members")
+            
+            # Create editable table
             for idx, member in enumerate(st.session_state.clan1_members):
                 actual_power = calculate_power(member['race'], member['power'], 
                                               st.session_state.clan1_mode)
                 
-                with st.container():
-                    st.markdown(f"**Member #{idx + 1}**")
-                    
-                    # Check if in edit mode
-                    if st.session_state.edit_mode_clan1.get(idx, False):
-                        # Edit mode
-                        c1, c2, c3 = st.columns(3)
-                        with c1:
-                            new_race = st.selectbox("Race", ["Dog", "Cat", "Frog"], 
-                                                   index=["Dog", "Cat", "Frog"].index(member['race']),
-                                                   key=f"edit_race1_{idx}")
-                        with c2:
-                            new_power = st.number_input("Power", min_value=1, 
-                                                       value=member['power'],
-                                                       key=f"edit_power1_{idx}")
-                        with c3:
-                            new_level = st.number_input("Level", min_value=1, 
-                                                       value=member['level'],
-                                                       key=f"edit_level1_{idx}")
-                        
-                        c1, c2 = st.columns(2)
-                        with c1:
-                            if st.button("💾 Save", key=f"save1_{idx}", use_container_width=True):
-                                st.session_state.clan1_members[idx] = {
-                                    'race': new_race,
-                                    'power': new_power,
-                                    'level': new_level
-                                }
-                                st.session_state.edit_mode_clan1[idx] = False
-                                st.rerun()
-                        with c2:
-                            if st.button("❌ Cancel", key=f"cancel1_{idx}", use_container_width=True):
-                                st.session_state.edit_mode_clan1[idx] = False
-                                st.rerun()
-                    else:
-                        # View mode
-                        st.write(f"🐾 Race: **{member['race']}** | ⚡ Power: **{member['power']}** | "
-                                f"📊 Level: **{member['level']}** | "
-                                f"💪 {st.session_state.clan1_mode} Power: **{actual_power:.1f}**")
-                        
-                        c1, c2 = st.columns(2)
-                        with c1:
-                            if st.button("✏️ Edit", key=f"edit1_{idx}", use_container_width=True):
-                                st.session_state.edit_mode_clan1[idx] = True
-                                st.rerun()
-                        with c2:
-                            if st.button("🗑️ Delete", key=f"delete1_{idx}", use_container_width=True):
-                                st.session_state.clan1_members.pop(idx)
-                                if idx in st.session_state.edit_mode_clan1:
-                                    del st.session_state.edit_mode_clan1[idx]
-                                st.rerun()
-                    
-                    st.markdown("---")
+                c1, c2, c3, c4, c5 = st.columns([2, 1, 1, 1.5, 0.7])
+                
+                with c1:
+                    new_race = st.selectbox("", ["Dog", "Cat", "Frog"], 
+                                           index=["Dog", "Cat", "Frog"].index(member['race']),
+                                           key=f"race1_{idx}",
+                                           label_visibility="collapsed")
+                with c2:
+                    new_power = st.number_input("", min_value=1, 
+                                               value=member['power'],
+                                               key=f"power1_{idx}",
+                                               label_visibility="collapsed")
+                with c3:
+                    new_level = st.number_input("", min_value=1, 
+                                               value=member['level'],
+                                               key=f"level1_{idx}",
+                                               label_visibility="collapsed")
+                with c4:
+                    st.markdown(f"<div style='padding-top: 8px;'>{st.session_state.clan1_mode} Power: <b>{actual_power:.1f}</b></div>", 
+                               unsafe_allow_html=True)
+                with c5:
+                    if st.button("🗑️", key=f"delete1_{idx}", use_container_width=True):
+                        st.session_state.clan1_members.pop(idx)
+                        st.rerun()
+                
+                # Update member if changed
+                if (new_race != member['race'] or new_power != member['power'] or 
+                    new_level != member['level']):
+                    st.session_state.clan1_members[idx] = {
+                        'race': new_race,
+                        'power': new_power,
+                        'level': new_level
+                    }
             
+            st.markdown("---")
             if st.button("🗑️ Clear All Clan 1", use_container_width=True):
                 st.session_state.clan1_members = []
-                st.session_state.edit_mode_clan1 = {}
                 st.rerun()
         else:
             st.info("No members yet. Add members using the form above.")
@@ -187,81 +171,69 @@ else:
         
         # Add member form
         with st.expander("➕ Add New Member"):
-            race2 = st.selectbox("Race", ["Dog", "Cat", "Frog"], key="race2")
-            power2 = st.number_input("Power", min_value=1, value=100, key="power2")
-            level2 = st.number_input("Level", min_value=1, value=1, key="level2")
-            
-            if st.button("Add to Clan 2", use_container_width=True):
-                st.session_state.clan2_members.append({
-                    'race': race2,
-                    'power': power2,
-                    'level': level2
-                })
-                st.success(f"Added {race2} to Clan 2!")
-                st.rerun()
+            c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
+            with c1:
+                race2 = st.selectbox("Race", ["Dog", "Cat", "Frog"], key="race2")
+            with c2:
+                power2 = st.number_input("Power", min_value=1, value=100, key="power2")
+            with c3:
+                level2 = st.number_input("Level", min_value=1, value=1, key="level2")
+            with c4:
+                st.write("")
+                st.write("")
+                if st.button("Add", use_container_width=True, key="add2"):
+                    st.session_state.clan2_members.append({
+                        'race': race2,
+                        'power': power2,
+                        'level': level2
+                    })
+                    st.rerun()
         
-        # Display members with edit/delete
+        # Display members table
         if st.session_state.clan2_members:
+            st.markdown("#### Members")
+            
+            # Create editable table
             for idx, member in enumerate(st.session_state.clan2_members):
                 actual_power = calculate_power(member['race'], member['power'], clan2_mode)
                 
-                with st.container():
-                    st.markdown(f"**Member #{idx + 1}**")
-                    
-                    # Check if in edit mode
-                    if st.session_state.edit_mode_clan2.get(idx, False):
-                        # Edit mode
-                        c1, c2, c3 = st.columns(3)
-                        with c1:
-                            new_race = st.selectbox("Race", ["Dog", "Cat", "Frog"], 
-                                                   index=["Dog", "Cat", "Frog"].index(member['race']),
-                                                   key=f"edit_race2_{idx}")
-                        with c2:
-                            new_power = st.number_input("Power", min_value=1, 
-                                                       value=member['power'],
-                                                       key=f"edit_power2_{idx}")
-                        with c3:
-                            new_level = st.number_input("Level", min_value=1, 
-                                                       value=member['level'],
-                                                       key=f"edit_level2_{idx}")
-                        
-                        c1, c2 = st.columns(2)
-                        with c1:
-                            if st.button("💾 Save", key=f"save2_{idx}", use_container_width=True):
-                                st.session_state.clan2_members[idx] = {
-                                    'race': new_race,
-                                    'power': new_power,
-                                    'level': new_level
-                                }
-                                st.session_state.edit_mode_clan2[idx] = False
-                                st.rerun()
-                        with c2:
-                            if st.button("❌ Cancel", key=f"cancel2_{idx}", use_container_width=True):
-                                st.session_state.edit_mode_clan2[idx] = False
-                                st.rerun()
-                    else:
-                        # View mode
-                        st.write(f"🐾 Race: **{member['race']}** | ⚡ Power: **{member['power']}** | "
-                                f"📊 Level: **{member['level']}** | "
-                                f"💪 {clan2_mode} Power: **{actual_power:.1f}**")
-                        
-                        c1, c2 = st.columns(2)
-                        with c1:
-                            if st.button("✏️ Edit", key=f"edit2_{idx}", use_container_width=True):
-                                st.session_state.edit_mode_clan2[idx] = True
-                                st.rerun()
-                        with c2:
-                            if st.button("🗑️ Delete", key=f"delete2_{idx}", use_container_width=True):
-                                st.session_state.clan2_members.pop(idx)
-                                if idx in st.session_state.edit_mode_clan2:
-                                    del st.session_state.edit_mode_clan2[idx]
-                                st.rerun()
-                    
-                    st.markdown("---")
+                c1, c2, c3, c4, c5 = st.columns([2, 1, 1, 1.5, 0.7])
+                
+                with c1:
+                    new_race = st.selectbox("", ["Dog", "Cat", "Frog"], 
+                                           index=["Dog", "Cat", "Frog"].index(member['race']),
+                                           key=f"race2_{idx}",
+                                           label_visibility="collapsed")
+                with c2:
+                    new_power = st.number_input("", min_value=1, 
+                                               value=member['power'],
+                                               key=f"power2_{idx}",
+                                               label_visibility="collapsed")
+                with c3:
+                    new_level = st.number_input("", min_value=1, 
+                                               value=member['level'],
+                                               key=f"level2_{idx}",
+                                               label_visibility="collapsed")
+                with c4:
+                    st.markdown(f"<div style='padding-top: 8px;'>{clan2_mode} Power: <b>{actual_power:.1f}</b></div>", 
+                               unsafe_allow_html=True)
+                with c5:
+                    if st.button("🗑️", key=f"delete2_{idx}", use_container_width=True):
+                        st.session_state.clan2_members.pop(idx)
+                        st.rerun()
+                
+                # Update member if changed
+                if (new_race != member['race'] or new_power != member['power'] or 
+                    new_level != member['level']):
+                    st.session_state.clan2_members[idx] = {
+                        'race': new_race,
+                        'power': new_power,
+                        'level': new_level
+                    }
             
+            st.markdown("---")
             if st.button("🗑️ Clear All Clan 2", use_container_width=True):
                 st.session_state.clan2_members = []
-                st.session_state.edit_mode_clan2 = {}
                 st.rerun()
         else:
             st.info("No members yet. Add members using the form above.")
