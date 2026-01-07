@@ -89,8 +89,18 @@ else:
     with col1:
         color = "#dc3545" if st.session_state.clan1_mode == 'ATK' else "#000080"
         total_power_1 = calculate_total_power(st.session_state.clan1_members, st.session_state.clan1_mode)
-        st.markdown(f"<h2 style='color: {color};'>Clan 1 - {st.session_state.clan1_mode} | Total: {total_power_1:.1f}</h2>", 
-                    unsafe_allow_html=True)
+        
+        # Header with clear button
+        h_col1, h_col2 = st.columns([3, 1])
+        with h_col1:
+            st.markdown(f"<h2 style='color: {color};'>Clan 1 - {st.session_state.clan1_mode} | Total: {total_power_1:.1f}</h2>", 
+                        unsafe_allow_html=True)
+        with h_col2:
+            if len(st.session_state.clan1_members) > 0:
+                st.write("")
+                if st.button("🗑️ Clear All", use_container_width=True, key="clear_top_1"):
+                    st.session_state.clan1_members = []
+                    st.rerun()
         
         # Add member form
         with st.expander("➕ Add New Member"):
@@ -155,10 +165,6 @@ else:
                         'level': new_level
                     }
             
-            st.markdown("---")
-            if st.button("🗑️ Clear All Clan 1", use_container_width=True):
-                st.session_state.clan1_members = []
-                st.rerun()
         else:
             st.info("No members yet. Add members using the form above.")
     
@@ -166,8 +172,18 @@ else:
     with col2:
         color = "#dc3545" if clan2_mode == 'ATK' else "#000080"
         total_power_2 = calculate_total_power(st.session_state.clan2_members, clan2_mode)
-        st.markdown(f"<h2 style='color: {color};'>Clan 2 - {clan2_mode} | Total: {total_power_2:.1f}</h2>", 
-                    unsafe_allow_html=True)
+        
+        # Header with clear button
+        h_col1, h_col2 = st.columns([3, 1])
+        with h_col1:
+            st.markdown(f"<h2 style='color: {color};'>Clan 2 - {clan2_mode} | Total: {total_power_2:.1f}</h2>", 
+                        unsafe_allow_html=True)
+        with h_col2:
+            if len(st.session_state.clan2_members) > 0:
+                st.write("")
+                if st.button("🗑️ Clear All", use_container_width=True, key="clear_top_2"):
+                    st.session_state.clan2_members = []
+                    st.rerun()
         
         # Add member form
         with st.expander("➕ Add New Member"):
