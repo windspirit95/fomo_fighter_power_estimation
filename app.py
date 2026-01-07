@@ -18,6 +18,9 @@ if 'clan1_mode' not in st.session_state:
 ADMIN_ID = "admin"
 ADMIN_PIN = "919399"
 
+# Bias value
+BIAS_VALUE = 0.84
+
 def calculate_power(race, base_power, mode):
     """Calculate actual power based on race and mode (ATK/DEF)"""
     if race == "Frog":
@@ -35,11 +38,11 @@ def calculate_power(race, base_power, mode):
     return base_power
 
 def calculate_total_power(members, mode):
-    """Calculate total clan power"""
+    """Calculate total clan power with bias"""
     total = 0
     for member in members:
         total += calculate_power(member['race'], member['power'], mode)
-    return total
+    return total * BIAS_VALUE
 
 # Login page
 if not st.session_state.logged_in:
@@ -247,6 +250,5 @@ else:
                         'level': new_level
                     }
             
-            st.markdown("---")
         else:
             st.info("No members yet. Add members using the form above.")
