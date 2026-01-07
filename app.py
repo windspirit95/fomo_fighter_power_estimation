@@ -54,15 +54,17 @@ def calculate_major_race_power(members, mode):
     """Calculate power for major race (Dog for DEF, Cat for ATK)"""
     major_race = "Dog" if mode == "DEF" else "Cat"
     total = 0
+    total_power = 0
     for member in members:
         if member['race'] == major_race:
             total += calculate_power(member['race'], member['power'], mode)
-    return total
+            total_power += member['power']
+    return total, total_power
 
 def calculate_total_power_lite(members, mode, clan_total_power):
     """Calculate total clan power for Lite mode"""
-    major_power = calculate_major_race_power(members, mode)
-    remaining_power = (clan_total_power - major_power) * 1.8
+    major_power, major_power_raw = calculate_major_race_power(members, mode)
+    remaining_power = (clan_total_power - major_power_raw) * 1.8
     return (major_power + remaining_power) * BIAS_VALUE
 
 # Login page
