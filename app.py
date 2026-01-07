@@ -92,7 +92,8 @@ else:
     # Clan 1 Panel
     with col1:
         color = "#dc3545" if st.session_state.clan1_mode == 'ATK' else "#000080"
-        st.markdown(f"<h2 style='color: {color};'>Clan 1 - {st.session_state.clan1_mode}</h2>", 
+        total_power_1 = calculate_total_power(st.session_state.clan1_members, st.session_state.clan1_mode)
+        st.markdown(f"<h2 style='color: {color};'>Clan 1 - {st.session_state.clan1_mode} | Total: {total_power_1:.1f}</h2>", 
                     unsafe_allow_html=True)
         
         # Add member form
@@ -170,12 +171,6 @@ else:
                     
                     st.markdown("---")
             
-            # Total power button
-            if st.button("📊 Calculate Total Clan 1 Power", use_container_width=True):
-                total = calculate_total_power(st.session_state.clan1_members, 
-                                             st.session_state.clan1_mode)
-                st.success(f"**Total {st.session_state.clan1_mode} Power: {total:.1f}**")
-            
             if st.button("🗑️ Clear All Clan 1", use_container_width=True):
                 st.session_state.clan1_members = []
                 st.session_state.edit_mode_clan1 = {}
@@ -186,7 +181,8 @@ else:
     # Clan 2 Panel
     with col2:
         color = "#dc3545" if clan2_mode == 'ATK' else "#000080"
-        st.markdown(f"<h2 style='color: {color};'>Clan 2 - {clan2_mode}</h2>", 
+        total_power_2 = calculate_total_power(st.session_state.clan2_members, clan2_mode)
+        st.markdown(f"<h2 style='color: {color};'>Clan 2 - {clan2_mode} | Total: {total_power_2:.1f}</h2>", 
                     unsafe_allow_html=True)
         
         # Add member form
@@ -262,11 +258,6 @@ else:
                                 st.rerun()
                     
                     st.markdown("---")
-            
-            # Total power button
-            if st.button("📊 Calculate Total Clan 2 Power", use_container_width=True):
-                total = calculate_total_power(st.session_state.clan2_members, clan2_mode)
-                st.success(f"**Total {clan2_mode} Power: {total:.1f}**")
             
             if st.button("🗑️ Clear All Clan 2", use_container_width=True):
                 st.session_state.clan2_members = []
