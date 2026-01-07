@@ -248,8 +248,5 @@ else:
                     }
             
             st.markdown("---")
-            if st.button("🗑️ Clear All Clan 2", use_container_width=True):
-                st.session_state.clan2_members = []
-                st.rerun()
         else:
             st.info("No members yet. Add members using the form above.")
