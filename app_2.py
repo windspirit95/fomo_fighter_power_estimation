@@ -201,59 +201,59 @@ def main():
                         st.error("Please enter a name")
         
         with tab2:
-            with st.form("image_form"):
-                # Manual name input
-                img_name = st.text_input("Name", placeholder="Enter member name")
-                
-                uploaded_file = st.file_uploader(
-                    "Upload an image with ATK and DEF stats",
-                    type=['png', 'jpg', 'jpeg', 'webp'],
-                    help="Upload an image containing ATK and DEF information"
-                )
-                
-                extract_button = st.form_submit_button("🔍 Extract Stats from Image", type="primary")
-                
-                if extract_button:
-                    if not img_name.strip():
-                        st.error("Please enter a name")
-                    elif uploaded_file is None:
-                        st.error("Please upload an image")
-                    else:
-                        with st.spinner("Analyzing image with Gemini..."):
-                            # Read image bytes
-                            image_bytes = uploaded_file.read()
-                            mime_type = uploaded_file.type
-                            
-                            # Extract stats using Gemini
-                            extracted_data = extract_stats_from_image(image_bytes, mime_type)
-                            
-                            if extracted_data:
-                                # Store in session state for confirmation
-                                st.session_state.extracted_data = extracted_data
-                                st.session_state.extracted_name = img_name.strip()
-                                st.session_state.show_confirmation = True
+            # Manual name input (outside form)
+            img_name = st.text_input("Name", placeholder="Enter member name", key="img_name_input")
             
-            # Display uploaded image outside the form
+            uploaded_file = st.file_uploader(
+                "Upload an image with ATK and DEF stats",
+                type=['png', 'jpg', 'jpeg', 'webp'],
+                help="Upload an image containing ATK and DEF information"
+            )
+            
+            # Display uploaded image
             if uploaded_file is not None:
                 st.image(uploaded_file, caption="Uploaded Image", use_container_width=True)
             
-            # Show confirmation form if extraction was successful
+            # Extract button (outside form)
+            if st.button("🔍 Extract Stats from Image", type="primary", key="extract_btn"):
+                if not img_name.strip():
+                    st.error("Please enter a name")
+                elif uploaded_file is None:
+                    st.error("Please upload an image")
+                else:
+                    with st.spinner("Analyzing image with Gemini..."):
+                        # Read image bytes
+                        uploaded_file.seek(0)  # Reset file pointer
+                        image_bytes = uploaded_file.read()
+                        mime_type = uploaded_file.type
+                        
+                        # Extract stats using Gemini
+                        extracted_data = extract_stats_from_image(image_bytes, mime_type)
+                        
+                        if extracted_data:
+                            # Store in session state for confirmation
+                            st.session_state.extracted_data = extracted_data
+                            st.session_state.extracted_name = img_name.strip()
+                            st.session_state.show_confirmation = True
+            
+            # Show confirmation if extraction was successful
             if st.session_state.get('show_confirmation', False):
                 st.success("✅ Stats extracted successfully!")
+                st.write("**Review and Confirm:**")
                 
-                with st.form("confirm_form"):
-                    st.write("**Review and Confirm:**")
-                    st.text_input("Name", value=st.session_state.extracted_name, disabled=True)
-                    ext_atk = st.number_input("ATK", min_value=0, value=int(st.session_state.extracted_data.get('atk', 0)), step=1)
-                    ext_def = st.number_input("DEF", min_value=0, value=int(st.session_state.extracted_data.get('def', 0)), step=1)
-                    
-                    col_a, col_b = st.columns(2)
-                    with col_a:
-                        confirm = st.form_submit_button("✅ Confirm & Add", type="primary")
-                    with col_b:
-                        cancel = st.form_submit_button("❌ Cancel")
-                    
-                    if confirm:
+                # Display extracted name (read-only)
+                st.text_input("Name", value=st.session_state.extracted_name, disabled=True, key="confirm_name")
+                
+                # Editable stats
+                col_atk, col_def = st.columns(2)
+                with col_atk:
+                    ext_atk = st.number_input("ATK", min_value=0, value=int(st.session_state.extracted_data.get('atk', 0)), step=100000, key="confirm_atk")
+                with col_def:
+                    ext_def = st.number_input("DEF", min_value=0, value=int(st.session_state.extracted_data.get('def', 0)), step=100000, key="confirm_def")
+                
+                col_a, col_b = st.columns(2)
+                with col_a:
+                    if st.button("✅ Confirm & Add", type="primary", key="confirm_add_btn"):
                         new_member = {
                             "name": st.session_state.extracted_name,
                             "atk": int(ext_atk),
@@ -261,15 +261,17 @@ def main():
                         }
                         members.append(new_member)
                         save_members(members)
-                        st.success(f"✅ Added {st.session_state.extracted_name} successfully!")
                         
                         # Clear session state
                         st.session_state.show_confirmation = False
                         st.session_state.pop('extracted_data', None)
                         st.session_state.pop('extracted_name', None)
+                        
+                        st.success(f"✅ Added {st.session_state.extracted_name} successfully!")
                         st.rerun()
-                    
-                    if cancel:
+                
+                with col_b:
+                    if st.button("❌ Cancel", key="cancel_btn"):
                         st.session_state.show_confirmation = False
                         st.session_state.pop('extracted_data', None)
                         st.session_state.pop('extracted_name', None)
@@ -283,22 +285,21 @@ def main():
         else:
             # Display members in a table-like format
             for idx, member in enumerate(members):
-                with st.container():
-                    cols = st.columns([3, 1, 1, 1])
-                    
-                    with cols[0]:
-                        st.write(f"**{member['name']}**")
-                    with cols[1]:
-                        st.write(f"⚔️ {format_stat(member['atk'])}")
-                    with cols[2]:
-                        st.write(f"🛡️ {format_stat(member['def'])}")
-                    with cols[3]:
-                        if st.button("❌", key=f"delete_{idx}"):
-                            members.pop(idx)
-                            save_members(members)
-                            st.rerun()
-                    
-                    st.markdown("---")
+                cols = st.columns([3, 1, 1, 1])
+                
+                with cols[0]:
+                    st.write(f"**{member['name']}**")
+                with cols[1]:
+                    st.write(f"⚔️ {format_stat(member['atk'])}")
+                with cols[2]:
+                    st.write(f"🛡️ {format_stat(member['def'])}")
+                with cols[3]:
+                    if st.button("❌", key=f"delete_{idx}"):
+                        members.pop(idx)
+                        save_members(members)
+                        st.rerun()
+                
+                st.markdown("---")
     
     # Display JSON data at the bottom (optional, for debugging)
     with st.expander("📄 View Raw JSON Data"):
