@@ -24,7 +24,23 @@ def load_members():
     """Load members data from JSON file"""
     if Path(DATA_FILE).exists():
         with open(DATA_FILE, 'r') as f:
-            return json.load(f)
+            data = json.load(f)
+            
+            # Migration: Convert old array format to new dictionary format
+            if isinstance(data, list):
+                migrated_data = {}
+                for member in data:
+                    name_key = member.get('name', '').lower()
+                    if name_key:  # Only migrate if name exists
+                        migrated_data[name_key] = member
+                
+                # Save migrated data
+                if migrated_data:
+                    save_members(migrated_data)
+                return migrated_data
+            
+            # Already in dictionary format
+            return data
     return {}
 
 def save_members(members):
