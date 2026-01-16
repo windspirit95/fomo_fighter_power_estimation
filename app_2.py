@@ -226,13 +226,23 @@ def main():
                     st.write("**Preview:**")
                     st.json(import_data)
                     
+                    # Require secret key for import
+                    import_secret = st.text_input(
+                        "Enter secret key to import:",
+                        type="password",
+                        key="import_secret_input"
+                    )
+                    
                     col_import, col_cancel = st.columns(2)
                     
                     with col_import:
                         if st.button("✅ Import Data", type="primary", key="import_btn"):
-                            # Merge or replace based on user preference
-                            st.session_state.import_data = import_data
-                            st.session_state.show_import_options = True
+                            if import_secret == DELETE_SECRET_KEY:
+                                # Store data and show import options
+                                st.session_state.import_data = import_data
+                                st.session_state.show_import_options = True
+                            else:
+                                st.error("❌ Invalid secret key!")
                     
                     with col_cancel:
                         if st.button("❌ Cancel Import", key="cancel_import_btn"):
