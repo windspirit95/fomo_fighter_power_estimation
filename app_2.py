@@ -25,7 +25,7 @@ def load_members():
     if Path(DATA_FILE).exists():
         with open(DATA_FILE, 'r') as f:
             return json.load(f)
-    return []
+    return {}
 
 def save_members(members):
     """Save members data to JSON file"""
@@ -34,8 +34,8 @@ def save_members(members):
 
 def calculate_totals(members):
     """Calculate total ATK and DEF from all members"""
-    total_atk = sum(member.get('atk', 0) for member in members)
-    total_def = sum(member.get('def', 0) for member in members)
+    total_atk = sum(member.get('atk', 0) for member in members.values())
+    total_def = sum(member.get('def', 0) for member in members.values())
     return total_atk, total_def
 
 def format_stat(value):
@@ -52,15 +52,19 @@ def parse_stat_input(value_str):
     if isinstance(value_str, (int, float)):
         return int(value_str)
     
+    # Convert to string and normalize: strip, uppercase
     value_str = str(value_str).strip().upper()
+    
+    # Remove any spaces
+    value_str = value_str.replace(' ', '')
     
     try:
         if 'M' in value_str:
-            # Handle millions
+            # Handle millions (e.g., 9M, 9.5M, 900M)
             number = float(value_str.replace('M', ''))
             return int(number * 1_000_000)
         elif 'K' in value_str:
-            # Handle thousands
+            # Handle thousands (e.g., 500K, 1.5K)
             number = float(value_str.replace('K', ''))
             return int(number * 1_000)
         else:
@@ -190,15 +194,24 @@ def main():
                     atk = parse_stat_input(atk_input) if atk_input else 0
                     def_val = parse_stat_input(def_input) if def_input else 0
                     
-                    new_member = {
-                        "name": name.strip(),
+                    # Use lowercase name as key
+                    name_key = name.strip().lower()
+                    
+                    # Check if updating existing member
+                    is_update = name_key in members
+                    
+                    members[name_key] = {
+                        "name": name.strip(),  # Keep original capitalization for display
                         "atk": atk,
                         "def": def_val,
                         "updated_at": get_utc_timestamp()
                     }
-                    members.append(new_member)
                     save_members(members)
-                    st.success(f"✅ Added {name} (ATK: {format_stat(atk)}, DEF: {format_stat(def_val)})")
+                    
+                    if is_update:
+                        st.success(f"✅ Updated {name} (ATK: {format_stat(atk)}, DEF: {format_stat(def_val)})")
+                    else:
+                        st.success(f"✅ Added {name} (ATK: {format_stat(atk)}, DEF: {format_stat(def_val)})")
                     st.rerun()
                 else:
                     st.error("Please enter a name")
@@ -257,13 +270,18 @@ def main():
             col_a, col_b = st.columns(2)
             with col_a:
                 if st.button("✅ Confirm & Add", type="primary", key="confirm_add_btn"):
-                    new_member = {
-                        "name": st.session_state.extracted_name,
+                    # Use lowercase name as key
+                    name_key = st.session_state.extracted_name.lower()
+                    
+                    # Check if updating existing member
+                    is_update = name_key in members
+                    
+                    members[name_key] = {
+                        "name": st.session_state.extracted_name,  # Keep original capitalization
                         "atk": int(ext_atk),
                         "def": int(ext_def),
                         "updated_at": get_utc_timestamp()
                     }
-                    members.append(new_member)
                     save_members(members)
                     
                     # Clear session state
@@ -271,7 +289,10 @@ def main():
                     st.session_state.pop('extracted_data', None)
                     st.session_state.pop('extracted_name', None)
                     
-                    st.success(f"✅ Added {st.session_state.extracted_name} successfully!")
+                    if is_update:
+                        st.success(f"✅ Updated {st.session_state.extracted_name}!")
+                    else:
+                        st.success(f"✅ Added {st.session_state.extracted_name}!")
                     st.rerun()
             
             with col_b:
@@ -290,7 +311,10 @@ def main():
         st.info("No members added yet. Add your first member!")
     else:
         # Display members in a table-like format
-        for idx, member in enumerate(members):
+        # Sort by name for consistent display
+        sorted_members = sorted(members.items())
+        
+        for name_key, member in sorted_members:
             cols = st.columns([3, 1, 1, 1])
             
             with cols[0]:
@@ -305,8 +329,8 @@ def main():
             with cols[2]:
                 st.write(f"🛡️ {format_stat(member['def'])}")
             with cols[3]:
-                if st.button("❌", key=f"delete_{idx}"):
-                    members.pop(idx)
+                if st.button("❌", key=f"delete_{name_key}"):
+                    del members[name_key]
                     save_members(members)
                     st.rerun()
             
