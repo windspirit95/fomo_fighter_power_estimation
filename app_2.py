@@ -2,6 +2,7 @@ import streamlit as st
 import json
 import os
 from pathlib import Path
+from datetime import datetime, timezone
 from google import genai
 from google.genai import types
 
@@ -67,6 +68,10 @@ def parse_stat_input(value_str):
             return int(float(value_str))
     except (ValueError, AttributeError):
         return 0
+
+def get_utc_timestamp():
+    """Get current UTC timestamp as ISO format string"""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
 def extract_stats_from_image(image_bytes, mime_type):
     """Use Gemini API to extract ATK and DEF from image"""
@@ -188,7 +193,8 @@ def main():
                     new_member = {
                         "name": name.strip(),
                         "atk": atk,
-                        "def": def_val
+                        "def": def_val,
+                        "updated_at": get_utc_timestamp()
                     }
                     members.append(new_member)
                     save_members(members)
@@ -254,7 +260,8 @@ def main():
                     new_member = {
                         "name": st.session_state.extracted_name,
                         "atk": int(ext_atk),
-                        "def": int(ext_def)
+                        "def": int(ext_def),
+                        "updated_at": get_utc_timestamp()
                     }
                     members.append(new_member)
                     save_members(members)
@@ -288,6 +295,11 @@ def main():
             
             with cols[0]:
                 st.write(f"**{member['name']}**")
+                # Display timestamp if available
+                if 'updated_at' in member:
+                    st.caption(f"🕒 {member['updated_at']}")
+                else:
+                    st.caption("🕒 No timestamp")
             with cols[1]:
                 st.write(f"⚔️ {format_stat(member['atk'])}")
             with cols[2]:
