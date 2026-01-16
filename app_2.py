@@ -8,6 +8,7 @@ from google.genai import types
 
 # Configuration
 DATA_FILE = "members_data.json"
+DELETE_SECRET_KEY = "windissupervippro"  # Change this to your own secret key
 
 # Initialize Gemini client
 def get_gemini_client():
@@ -178,14 +179,31 @@ def main():
         
         # Clear all data button
         if st.button("🗑️ Clear All Data", type="secondary"):
-            if st.session_state.get('confirm_clear', False):
-                members = []
-                save_members(members)
-                st.session_state.confirm_clear = False
+            st.session_state.show_clear_dialog = True
+        
+        # Show clear all confirmation dialog
+        if st.session_state.get('show_clear_dialog', False):
+            st.warning("⚠️ This will delete ALL members!")
+            
+            clear_secret_input = st.text_input(
+                "Enter secret key:", 
+                type="password",
+                key="clear_secret_input"
+            )
+            
+            if st.button("Confirm Clear All", type="primary", key="confirm_clear_btn"):
+                if clear_secret_input == DELETE_SECRET_KEY:
+                    members = {}
+                    save_members(members)
+                    st.session_state.show_clear_dialog = False
+                    st.success("✅ All data cleared")
+                    st.rerun()
+                else:
+                    st.error("❌ Invalid secret key!")
+            
+            if st.button("Cancel", key="cancel_clear_btn"):
+                st.session_state.show_clear_dialog = False
                 st.rerun()
-            else:
-                st.session_state.confirm_clear = True
-                st.warning("Click again to confirm deletion")
     
     # Main content - Add new member section
     st.subheader("➕ Add New Member")
@@ -346,11 +364,43 @@ def main():
                 st.write(f"🛡️ {format_stat(member['def'])}")
             with cols[3]:
                 if st.button("❌", key=f"delete_{name_key}"):
-                    del members[name_key]
-                    save_members(members)
-                    st.rerun()
+                    # Store which member to delete in session state
+                    st.session_state.delete_pending = name_key
+                    st.session_state.show_delete_dialog = True
             
             st.markdown("---")
+        
+        # Show delete confirmation dialog
+        if st.session_state.get('show_delete_dialog', False):
+            st.markdown("---")
+            st.warning(f"⚠️ Confirm deletion of **{members[st.session_state.delete_pending]['name']}**")
+            
+            secret_input = st.text_input(
+                "Enter secret key to delete:", 
+                type="password",
+                key="delete_secret_input"
+            )
+            
+            col_confirm, col_cancel = st.columns(2)
+            
+            with col_confirm:
+                if st.button("🗑️ Confirm Delete", type="primary", key="confirm_delete_btn"):
+                    if secret_input == DELETE_SECRET_KEY:
+                        deleted_name = members[st.session_state.delete_pending]['name']
+                        del members[st.session_state.delete_pending]
+                        save_members(members)
+                        st.session_state.show_delete_dialog = False
+                        st.session_state.pop('delete_pending', None)
+                        st.success(f"✅ Deleted {deleted_name}")
+                        st.rerun()
+                    else:
+                        st.error("❌ Invalid secret key!")
+            
+            with col_cancel:
+                if st.button("❌ Cancel", key="cancel_delete_btn"):
+                    st.session_state.show_delete_dialog = False
+                    st.session_state.pop('delete_pending', None)
+                    st.rerun()
     
     # Display JSON data at the bottom (optional, for debugging)
     with st.expander("📄 View Raw JSON Data"):
