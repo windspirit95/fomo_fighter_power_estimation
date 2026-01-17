@@ -1,520 +1,411 @@
 import streamlit as st
-import json
-import os
-from pathlib import Path
-from datetime import datetime, timezone
-from google import genai
-from google.genai import types
+import pandas as pd
 
-# Configuration
-DATA_FILE = "members_data.json"
-DELETE_SECRET_KEY = "your-secret-key-here"  # Change this to your own secret key
+# Page config
+st.set_page_config(page_title="Clan Manager", layout="wide")
 
-# Initialize Gemini client
-def get_gemini_client():
-    """Initialize Gemini client with API key from environment variable"""
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        st.error("⚠️ GEMINI_API_KEY environment variable not set!")
-        st.info("Please set your Gemini API key: `export GEMINI_API_KEY='your-api-key'`")
-        return None
-    return genai.Client(api_key=api_key)
+# Initialize session state
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+if 'clan1_members' not in st.session_state:
+    st.session_state.clan1_members = []
+if 'clan2_members' not in st.session_state:
+    st.session_state.clan2_members = []
+if 'clan1_mode' not in st.session_state:
+    st.session_state.clan1_mode = 'ATK'
+if 'calc_mode' not in st.session_state:
+    st.session_state.calc_mode = 'Full'
+if 'clan1_total_power' not in st.session_state:
+    st.session_state.clan1_total_power = 0
+if 'clan2_total_power' not in st.session_state:
+    st.session_state.clan2_total_power = 0
 
-# Data management functions
-def load_members():
-    """Load members data from JSON file"""
-    if Path(DATA_FILE).exists():
-        with open(DATA_FILE, 'r') as f:
-            data = json.load(f)
-            
-            # Migration: Convert old array format to new dictionary format
-            if isinstance(data, list):
-                migrated_data = {}
-                for member in data:
-                    name_key = member.get('name', '').lower()
-                    if name_key:  # Only migrate if name exists
-                        migrated_data[name_key] = member
-                
-                # Save migrated data
-                if migrated_data:
-                    save_members(migrated_data)
-                return migrated_data
-            
-            # Already in dictionary format
-            return data
-    return {}
+# Login credentials
+ADMIN_ID = "admin"
+ADMIN_PIN = "919399"
 
-def save_members(members):
-    """Save members data to JSON file"""
-    with open(DATA_FILE, 'w') as f:
-        json.dump(members, f, indent=2)
+# Bias value
+BIAS_VALUE = 0.84
 
-def calculate_totals(members):
-    """Calculate total ATK and DEF from all members"""
-    total_atk = sum(member.get('atk', 0) for member in members.values())
-    total_def = sum(member.get('def', 0) for member in members.values())
-    return total_atk, total_def
-
-def format_stat(value):
-    """Format stat value - show in millions (M) if >= 1 million"""
-    if value >= 1_000_000:
-        return f"{value / 1_000_000:.1f}M"
-    elif value >= 1_000:
-        return f"{value / 1_000:.1f}K"
-    else:
-        return str(value)
-
-def parse_stat_input(value_str):
-    """Parse stat input - supports formats like '2M', '4.1M', '500K', or plain numbers"""
-    if isinstance(value_str, (int, float)):
-        return int(value_str)
-    
-    # Convert to string and normalize: strip, uppercase
-    value_str = str(value_str).strip().upper()
-    
-    # Remove any spaces
-    value_str = value_str.replace(' ', '')
-    
-    try:
-        if 'M' in value_str:
-            # Handle millions (e.g., 9M, 9.5M, 900M)
-            number = float(value_str.replace('M', ''))
-            return int(number * 1_000_000)
-        elif 'K' in value_str:
-            # Handle thousands (e.g., 500K, 1.5K)
-            number = float(value_str.replace('K', ''))
-            return int(number * 1_000)
+def calculate_power(race, base_power, mode):
+    """Calculate actual power based on race and mode (ATK/DEF)"""
+    if race == "Frog":
+        return base_power * 1.5
+    elif race == "Cat":
+        if mode == "ATK":
+            return base_power * 5.2
         else:
-            # Plain number
-            return int(float(value_str))
-    except (ValueError, AttributeError):
-        return 0
+            return base_power * 2.5
+    elif race == "Dog":
+        if mode == "ATK":
+            return base_power * 2.5
+        else:
+            return base_power * 5.2
+    return base_power
 
-def get_utc_timestamp():
-    """Get current UTC timestamp as ISO format string"""
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+def calculate_total_power_full(members, mode):
+    """Calculate total clan power with bias for Full mode"""
+    total = 0
+    for member in members:
+        total += calculate_power(member['race'], member['power'], mode)
+    return total * BIAS_VALUE
 
-def extract_stats_from_image(image_bytes, mime_type):
-    """Use Gemini API to extract ATK and DEF from image"""
-    client = get_gemini_client()
-    if not client:
-        return None
-    
-    try:
-        prompt = """Analyze this image and extract the following information if present:
-- ATK (attack value - may have M for millions, e.g., "2M" = 2000000)
-- DEF (defense value - may have M for millions, e.g., "4.1M" = 4100000)
+def calculate_major_race_power(members, mode):
+    """Calculate power for major race (Dog for DEF, Cat for ATK)"""
+    major_race = "Dog" if mode == "DEF" else "Cat"
+    total = 0
+    total_power = 0
+    for member in members:
+        if member['race'] == major_race:
+            total += calculate_power(member['race'], member['power'], mode)
+            total_power += member['power']
+    return total, total_power
 
-Convert any values with M suffix to actual numbers (multiply by 1,000,000).
-Look for icons or symbols that typically represent attack (swords, red) and defense (shields, gray/black).
+def calculate_total_power_lite(members, mode, clan_total_power):
+    """Calculate total clan power for Lite mode"""
+    major_power, major_power_raw = calculate_major_race_power(members, mode)
+    remaining_power = (clan_total_power - major_power_raw) * 1.8
+    return (major_power + remaining_power) * BIAS_VALUE
 
-Please respond in this exact JSON format with converted numeric values:
-{
-  "atk": numeric_value_or_0,
-  "def": numeric_value_or_0
-}
-
-Examples:
-- "2M" should become 2000000
-- "4.1M" should become 4100000
-- "2.2M" should become 2200000
-
-If you cannot find specific values, use 0 as default."""
-
-        response = client.models.generate_content(
-            model='gemini-2.0-flash-exp',
-            contents=[
-                types.Part.from_bytes(
-                    data=image_bytes,
-                    mime_type=mime_type,
-                ),
-                prompt
-            ]
-        )
-        
-        # Parse the response
-        response_text = response.text.strip()
-        
-        # Try to extract JSON from the response
-        if "```json" in response_text:
-            json_start = response_text.find("```json") + 7
-            json_end = response_text.find("```", json_start)
-            response_text = response_text[json_start:json_end].strip()
-        elif "```" in response_text:
-            json_start = response_text.find("```") + 3
-            json_end = response_text.find("```", json_start)
-            response_text = response_text[json_start:json_end].strip()
-        
-        data = json.loads(response_text)
-        return data
-    
-    except Exception as e:
-        st.error(f"Error processing image with Gemini: {str(e)}")
-        return None
-
-# Streamlit UI
-def main():
-    st.set_page_config(page_title="Member Stats Manager", page_icon="⚔️", layout="wide")
-    
-    st.title("⚔️ Member Stats Manager")
+def render_clan_manager():
+    """Render the main clan manager interface"""
+    # Mode toggle and calculation mode
     st.markdown("---")
+    col1, col2, col3 = st.columns([2, 1, 2])
     
-    # Load existing members
-    members = load_members()
-    
-    # Sidebar for totals
-    with st.sidebar:
-        st.header("📊 Total Stats")
-        total_atk, total_def = calculate_totals(members)
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Total ATK", format_stat(total_atk))
-        with col2:
-            st.metric("Total DEF", format_stat(total_def))
-        
-        st.metric("Total Members", len(members))
-        
-        st.markdown("---")
-        
-        # Download button
-        if members:
-            json_str = json.dumps(members, indent=2)
-            st.download_button(
-                label="📥 Download Data (JSON)",
-                data=json_str,
-                file_name=f"members_data_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json",
-                mime="application/json",
-                help="Download all member data as JSON file"
-            )
-        
-        st.markdown("---")
-        
-        # Import/Export section
-        st.header("📁 Import/Export")
-        
-        # Export button
-        if members:
-            export_data = json.dumps(members, indent=2)
-            st.download_button(
-                label="📥 Export Data (JSON)",
-                data=export_data,
-                file_name=f"clan_data_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json",
-                mime="application/json",
-                help="Download all member data as JSON file"
-            )
+    with col1:
+        if st.toggle("Lite Mode", value=(st.session_state.calc_mode == 'Lite'), key="calc_mode_toggle"):
+            st.session_state.calc_mode = 'Lite'
         else:
-            st.info("No data to export")
+            st.session_state.calc_mode = 'Full'
+    
+    with col2:
+        if st.toggle("Switch ATK/DEF", value=(st.session_state.clan1_mode == 'DEF')):
+            st.session_state.clan1_mode = 'DEF'
+        else:
+            st.session_state.clan1_mode = 'ATK'
+    
+    clan2_mode = 'DEF' if st.session_state.clan1_mode == 'ATK' else 'ATK'
+    
+    # Two panel layout
+    col1, col2 = st.columns(2)
+    
+    # Clan 1 Panel
+    with col1:
+        color = "#dc3545" if st.session_state.clan1_mode == 'ATK' else "#000080"
         
-        # Import button
-        uploaded_json = st.file_uploader(
-            "📤 Import Data (JSON)",
-            type=['json'],
-            help="Upload a JSON file to import clan data"
-        )
+        if st.session_state.calc_mode == 'Full':
+            total_power_1 = calculate_total_power_full(st.session_state.clan1_members, st.session_state.clan1_mode)
+        else:
+            total_power_1 = calculate_total_power_lite(st.session_state.clan1_members, st.session_state.clan1_mode, st.session_state.clan1_total_power)
         
-        if uploaded_json is not None:
-            try:
-                # Read and parse the uploaded JSON
-                import_data = json.load(uploaded_json)
-                
-                # Validate it's a dictionary
-                if not isinstance(import_data, dict):
-                    st.error("❌ Invalid format! JSON must be an object/dictionary.")
-                else:
-                    # Show preview
-                    st.write("**Preview:**")
-                    st.json(import_data)
+        # Header with clear button
+        h_col1, h_col2 = st.columns([3, 1])
+        with h_col1:
+            st.markdown(f"<h2 style='color: {color};'>Clan 1 - {st.session_state.clan1_mode} | Total: {total_power_1:.1f}</h2>", 
+                        unsafe_allow_html=True)
+        with h_col2:
+            if len(st.session_state.clan1_members) > 0:
+                st.write("")
+                if st.button("🗑️ Clear All", use_container_width=True, key="clear_top_1"):
+                    st.session_state.clan1_members = []
+                    st.rerun()
+        
+        # Lite mode: Total power input
+        if st.session_state.calc_mode == 'Lite':
+            st.number_input(
+                "Total Clan Power", 
+                min_value=0, 
+                value=st.session_state.clan1_total_power,
+                key="clan1_total_input",
+                on_change=lambda: setattr(st.session_state, 'clan1_total_power', st.session_state.clan1_total_input)
+            )
+        
+        # Add member form
+        with st.expander("➕ Add New Member"):
+            if st.session_state.calc_mode == 'Full':
+                c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
+                with c1:
+                    race1 = st.selectbox("Race", ["Dog", "Cat", "Frog"], key="race1")
+                with c2:
+                    power1 = st.number_input("Power", min_value=1, value=100, key="power1")
+                with c3:
+                    level1 = st.number_input("Level", min_value=1, value=1, key="level1")
+                with c4:
+                    st.write("")
+                    st.write("")
+                    if st.button("Add", use_container_width=True, key="add1"):
+                        st.session_state.clan1_members.append({
+                            'race': race1,
+                            'power': power1,
+                            'level': level1
+                        })
+                        st.rerun()
+            else:
+                # Lite mode: only major race
+                major_race = "Cat" if st.session_state.clan1_mode == 'ATK' else "Dog"
+                c1, c2 = st.columns([2, 1])
+                with c1:
+                    power1_lite = st.number_input("Power", min_value=1, value=100, key="power1_lite")
+                with c2:
+                    st.write("")
+                    st.write("")
+                    if st.button("Add", use_container_width=True, key="add1_lite"):
+                        st.session_state.clan1_members.append({
+                            'race': major_race,
+                            'power': power1_lite
+                        })
+                        st.rerun()
+        
+        # Display members table
+        if st.session_state.clan1_members:
+            st.markdown("#### Members")
+            
+            if st.session_state.calc_mode == 'Full':
+                # Full mode table
+                for idx, member in enumerate(st.session_state.clan1_members):
+                    actual_power = calculate_power(member['race'], member['power'], 
+                                                  st.session_state.clan1_mode)
                     
-                    # Require secret key for import
-                    import_secret = st.text_input(
-                        "Enter secret key to import:",
-                        type="password",
-                        key="import_secret_input"
-                    )
+                    c1, c2, c3, c4, c5 = st.columns([2, 1, 1, 1.5, 0.7])
                     
-                    col_import, col_cancel = st.columns(2)
-                    
-                    with col_import:
-                        if st.button("✅ Import Data", type="primary", key="import_btn"):
-                            if import_secret == DELETE_SECRET_KEY:
-                                # Store data and show import options
-                                st.session_state.import_data = import_data
-                                st.session_state.show_import_options = True
-                            else:
-                                st.error("❌ Invalid secret key!")
-                    
-                    with col_cancel:
-                        if st.button("❌ Cancel Import", key="cancel_import_btn"):
+                    with c1:
+                        new_race = st.selectbox("", ["Dog", "Cat", "Frog"], 
+                                               index=["Dog", "Cat", "Frog"].index(member['race']),
+                                               key=f"race1_{idx}",
+                                               label_visibility="collapsed")
+                    with c2:
+                        new_power = st.number_input("", min_value=1, 
+                                                   value=member['power'],
+                                                   key=f"power1_{idx}",
+                                                   label_visibility="collapsed")
+                    with c3:
+                        new_level = st.number_input("", min_value=1, 
+                                                   value=member['level'],
+                                                   key=f"level1_{idx}",
+                                                   label_visibility="collapsed")
+                    with c4:
+                        st.markdown(f"<div style='padding-top: 8px;'>{st.session_state.clan1_mode} Power: <b>{actual_power:.1f}</b></div>", 
+                                   unsafe_allow_html=True)
+                    with c5:
+                        if st.button("🗑️", key=f"delete1_{idx}", use_container_width=True):
+                            st.session_state.clan1_members.pop(idx)
                             st.rerun()
-            
-            except json.JSONDecodeError as e:
-                st.error(f"❌ Invalid JSON file: {str(e)}")
-            except Exception as e:
-                st.error(f"❌ Error reading file: {str(e)}")
-        
-        # Show import options dialog
-        if st.session_state.get('show_import_options', False):
-            st.markdown("---")
-            st.subheader("Import Options")
-            
-            import_mode = st.radio(
-                "How would you like to import?",
-                ["Merge (keep existing + add new)", "Replace (overwrite all data)"],
-                key="import_mode_radio"
-            )
-            
-            col_confirm, col_cancel = st.columns(2)
-            
-            with col_confirm:
-                if st.button("Confirm Import", type="primary", key="confirm_import_btn"):
-                    if import_mode == "Replace (overwrite all data)":
-                        members = st.session_state.import_data.copy()
-                    else:  # Merge
-                        members.update(st.session_state.import_data)
                     
-                    save_members(members)
-                    st.session_state.show_import_options = False
-                    st.session_state.pop('import_data', None)
-                    st.success(f"✅ Data imported successfully! ({len(st.session_state.import_data)} members)")
-                    st.rerun()
+                    # Update member if changed
+                    if (new_race != member['race'] or new_power != member['power'] or 
+                        new_level != member['level']):
+                        st.session_state.clan1_members[idx] = {
+                            'race': new_race,
+                            'power': new_power,
+                            'level': new_level
+                        }
+            else:
+                # Lite mode table
+                major_race = "Cat" if st.session_state.clan1_mode == 'ATK' else "Dog"
+                for idx, member in enumerate(st.session_state.clan1_members):
+                    actual_power = calculate_power(member['race'], member['power'], 
+                                                  st.session_state.clan1_mode)
+                    
+                    c1, c2, c3 = st.columns([2, 1.5, 0.7])
+                    
+                    with c1:
+                        new_power = st.number_input("", min_value=1, 
+                                                   value=member['power'],
+                                                   key=f"power1_lite_{idx}",
+                                                   label_visibility="collapsed")
+                    with c2:
+                        st.markdown(f"<div style='padding-top: 8px;'>{major_race} - {st.session_state.clan1_mode} Power: <b>{actual_power:.1f}</b></div>", 
+                                   unsafe_allow_html=True)
+                    with c3:
+                        if st.button("🗑️", key=f"delete1_lite_{idx}", use_container_width=True):
+                            st.session_state.clan1_members.pop(idx)
+                            st.rerun()
+                    
+                    # Update member if changed
+                    if new_power != member['power']:
+                        st.session_state.clan1_members[idx] = {
+                            'race': major_race,
+                            'power': new_power
+                        }
             
-            with col_cancel:
-                if st.button("Cancel", key="cancel_import_options_btn"):
-                    st.session_state.show_import_options = False
-                    st.session_state.pop('import_data', None)
+        else:
+            st.info("No members yet. Add members using the form above.")
+    
+    # Clan 2 Panel
+    with col2:
+        color = "#dc3545" if clan2_mode == 'ATK' else "#000080"
+        
+        if st.session_state.calc_mode == 'Full':
+            total_power_2 = calculate_total_power_full(st.session_state.clan2_members, clan2_mode)
+        else:
+            total_power_2 = calculate_total_power_lite(st.session_state.clan2_members, clan2_mode, st.session_state.clan2_total_power)
+        
+        # Header with clear button
+        h_col1, h_col2 = st.columns([3, 1])
+        with h_col1:
+            st.markdown(f"<h2 style='color: {color};'>Clan 2 - {clan2_mode} | Total: {total_power_2:.1f}</h2>", 
+                        unsafe_allow_html=True)
+        with h_col2:
+            if len(st.session_state.clan2_members) > 0:
+                st.write("")
+                if st.button("🗑️ Clear All", use_container_width=True, key="clear_top_2"):
+                    st.session_state.clan2_members = []
                     st.rerun()
         
-        st.markdown("---")
-        
-        # Clear all data button
-        if st.button("🗑️ Clear All Data", type="secondary"):
-            st.session_state.show_clear_dialog = True
-        
-        # Show clear all confirmation dialog
-        if st.session_state.get('show_clear_dialog', False):
-            st.warning("⚠️ This will delete ALL members!")
-            
-            clear_secret_input = st.text_input(
-                "Enter secret key:", 
-                type="password",
-                key="clear_secret_input"
+        # Lite mode: Total power input
+        if st.session_state.calc_mode == 'Lite':
+            st.number_input(
+                "Total Clan Power", 
+                min_value=0, 
+                value=st.session_state.clan2_total_power,
+                key="clan2_total_input",
+                on_change=lambda: setattr(st.session_state, 'clan2_total_power', st.session_state.clan2_total_input)
             )
+        
+        # Add member form
+        with st.expander("➕ Add New Member"):
+            if st.session_state.calc_mode == 'Full':
+                c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
+                with c1:
+                    race2 = st.selectbox("Race", ["Dog", "Cat", "Frog"], key="race2")
+                with c2:
+                    power2 = st.number_input("Power", min_value=1, value=100, key="power2")
+                with c3:
+                    level2 = st.number_input("Level", min_value=1, value=1, key="level2")
+                with c4:
+                    st.write("")
+                    st.write("")
+                    if st.button("Add", use_container_width=True, key="add2"):
+                        st.session_state.clan2_members.append({
+                            'race': race2,
+                            'power': power2,
+                            'level': level2
+                        })
+                        st.rerun()
+            else:
+                # Lite mode: only major race
+                major_race = "Cat" if clan2_mode == 'ATK' else "Dog"
+                c1, c2 = st.columns([2, 1])
+                with c1:
+                    power2_lite = st.number_input("Power", min_value=1, value=100, key="power2_lite")
+                with c2:
+                    st.write("")
+                    st.write("")
+                    if st.button("Add", use_container_width=True, key="add2_lite"):
+                        st.session_state.clan2_members.append({
+                            'race': major_race,
+                            'power': power2_lite
+                        })
+                        st.rerun()
+        
+        # Display members table
+        if st.session_state.clan2_members:
+            st.markdown("#### Members")
             
-            if st.button("Confirm Clear All", type="primary", key="confirm_clear_btn"):
-                if clear_secret_input == DELETE_SECRET_KEY:
-                    members = {}
-                    save_members(members)
-                    st.session_state.show_clear_dialog = False
-                    st.success("✅ All data cleared")
-                    st.rerun()
-                else:
-                    st.error("❌ Invalid secret key!")
+            if st.session_state.calc_mode == 'Full':
+                # Full mode table
+                for idx, member in enumerate(st.session_state.clan2_members):
+                    actual_power = calculate_power(member['race'], member['power'], clan2_mode)
+                    
+                    c1, c2, c3, c4, c5 = st.columns([2, 1, 1, 1.5, 0.7])
+                    
+                    with c1:
+                        new_race = st.selectbox("", ["Dog", "Cat", "Frog"], 
+                                               index=["Dog", "Cat", "Frog"].index(member['race']),
+                                               key=f"race2_{idx}",
+                                               label_visibility="collapsed")
+                    with c2:
+                        new_power = st.number_input("", min_value=1, 
+                                                   value=member['power'],
+                                                   key=f"power2_{idx}",
+                                                   label_visibility="collapsed")
+                    with c3:
+                        new_level = st.number_input("", min_value=1, 
+                                                   value=member['level'],
+                                                   key=f"level2_{idx}",
+                                                   label_visibility="collapsed")
+                    with c4:
+                        st.markdown(f"<div style='padding-top: 8px;'>{clan2_mode} Power: <b>{actual_power:.1f}</b></div>", 
+                                   unsafe_allow_html=True)
+                    with c5:
+                        if st.button("🗑️", key=f"delete2_{idx}", use_container_width=True):
+                            st.session_state.clan2_members.pop(idx)
+                            st.rerun()
+                    
+                    # Update member if changed
+                    if (new_race != member['race'] or new_power != member['power'] or 
+                        new_level != member['level']):
+                        st.session_state.clan2_members[idx] = {
+                            'race': new_race,
+                            'power': new_power,
+                            'level': new_level
+                        }
+            else:
+                # Lite mode table
+                major_race = "Cat" if clan2_mode == 'ATK' else "Dog"
+                for idx, member in enumerate(st.session_state.clan2_members):
+                    actual_power = calculate_power(member['race'], member['power'], clan2_mode)
+                    
+                    c1, c2, c3 = st.columns([2, 1.5, 0.7])
+                    
+                    with c1:
+                        new_power = st.number_input("", min_value=1, 
+                                                   value=member['power'],
+                                                   key=f"power2_lite_{idx}",
+                                                   label_visibility="collapsed")
+                    with c2:
+                        st.markdown(f"<div style='padding-top: 8px;'>{major_race} - {clan2_mode} Power: <b>{actual_power:.1f}</b></div>", 
+                                   unsafe_allow_html=True)
+                    with c3:
+                        if st.button("🗑️", key=f"delete2_lite_{idx}", use_container_width=True):
+                            st.session_state.clan2_members.pop(idx)
+                            st.rerun()
+                    
+                    # Update member if changed
+                    if new_power != member['power']:
+                        st.session_state.clan2_members[idx] = {
+                            'race': major_race,
+                            'power': new_power
+                        }
             
-            if st.button("Cancel", key="cancel_clear_btn"):
-                st.session_state.show_clear_dialog = False
+        else:
+            st.info("No members yet. Add members using the form above.")
+
+# Login page
+if not st.session_state.logged_in:
+    st.title("🛡️ Clan Manager - Login")
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col2:
+        st.markdown("### Please Login")
+        user_id = st.text_input("User ID", key="login_id")
+        user_pin = st.text_input("PIN Code", type="password", max_chars=6, key="login_pin")
+        
+        if st.button("Login", use_container_width=True):
+            if user_id == ADMIN_ID and user_pin == ADMIN_PIN:
+                st.session_state.logged_in = True
                 st.rerun()
+            else:
+                st.error("Invalid credentials!")
+
+# Main app with tabs
+else:
+    # Header with logout
+    col1, col2 = st.columns([6, 1])
+    with col1:
+        st.title("⚔️ Clan Manager")
+    with col2:
+        if st.button("Logout"):
+            st.session_state.logged_in = False
+            st.rerun()
     
-    # Main content - Add new member section
-    st.subheader("➕ Add New Member")
-    
-    # Tab for different input methods
-    tab1, tab2 = st.tabs(["📝 Manual Input", "🖼️ Upload Image"])
+    # Create tabs
+    tab1, tab2 = st.tabs(["Tab 1", "Tab 2"])
     
     with tab1:
-        with st.form("manual_form"):
-            name = st.text_input("Name", placeholder="Enter member name")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                atk_input = st.text_input("ATK", placeholder="e.g., 2M or 2000000", help="You can use M for millions (e.g., 2M = 2,000,000)")
-            with col2:
-                def_input = st.text_input("DEF", placeholder="e.g., 4.1M or 4100000", help="You can use M for millions (e.g., 4.1M = 4,100,000)")
-            
-            submit = st.form_submit_button("Add Member", type="primary")
-            
-            if submit:
-                if name.strip():
-                    atk = parse_stat_input(atk_input) if atk_input else 0
-                    def_val = parse_stat_input(def_input) if def_input else 0
-                    
-                    # Use lowercase name as key
-                    name_key = name.strip().lower()
-                    
-                    # Check if updating existing member
-                    is_update = name_key in members
-                    
-                    members[name_key] = {
-                        "name": name.strip(),  # Keep original capitalization for display
-                        "atk": atk,
-                        "def": def_val,
-                        "updated_at": get_utc_timestamp()
-                    }
-                    save_members(members)
-                    
-                    if is_update:
-                        st.success(f"✅ Updated {name} (ATK: {format_stat(atk)}, DEF: {format_stat(def_val)})")
-                    else:
-                        st.success(f"✅ Added {name} (ATK: {format_stat(atk)}, DEF: {format_stat(def_val)})")
-                    st.rerun()
-                else:
-                    st.error("Please enter a name")
+        render_clan_manager()
     
     with tab2:
-        # Manual name input (outside form)
-        img_name = st.text_input("Name", placeholder="Enter member name", key="img_name_input")
-        
-        uploaded_file = st.file_uploader(
-            "Upload an image with ATK and DEF stats",
-            type=['png', 'jpg', 'jpeg', 'webp'],
-            help="Upload an image containing ATK and DEF information"
-        )
-        
-        # Display uploaded image
-        if uploaded_file is not None:
-            st.image(uploaded_file, caption="Uploaded Image", use_container_width=True)
-        
-        # Extract button (outside form)
-        if st.button("🔍 Extract Stats from Image", type="primary", key="extract_btn"):
-            if not img_name.strip():
-                st.error("Please enter a name")
-            elif uploaded_file is None:
-                st.error("Please upload an image")
-            else:
-                with st.spinner("Analyzing image with Gemini..."):
-                    # Read image bytes
-                    uploaded_file.seek(0)  # Reset file pointer
-                    image_bytes = uploaded_file.read()
-                    mime_type = uploaded_file.type
-                    
-                    # Extract stats using Gemini
-                    extracted_data = extract_stats_from_image(image_bytes, mime_type)
-                    
-                    if extracted_data:
-                        # Store in session state for confirmation
-                        st.session_state.extracted_data = extracted_data
-                        st.session_state.extracted_name = img_name.strip()
-                        st.session_state.show_confirmation = True
-        
-        # Show confirmation if extraction was successful
-        if st.session_state.get('show_confirmation', False):
-            st.success("✅ Stats extracted successfully!")
-            st.write("**Review and Confirm:**")
-            
-            # Display extracted name (read-only)
-            st.text_input("Name", value=st.session_state.extracted_name, disabled=True, key="confirm_name")
-            
-            # Editable stats
-            col_atk, col_def = st.columns(2)
-            with col_atk:
-                ext_atk = st.number_input("ATK", min_value=0, value=int(st.session_state.extracted_data.get('atk', 0)), step=100000, key="confirm_atk")
-            with col_def:
-                ext_def = st.number_input("DEF", min_value=0, value=int(st.session_state.extracted_data.get('def', 0)), step=100000, key="confirm_def")
-            
-            col_a, col_b = st.columns(2)
-            with col_a:
-                if st.button("✅ Confirm & Add", type="primary", key="confirm_add_btn"):
-                    # Use lowercase name as key
-                    name_key = st.session_state.extracted_name.lower()
-                    
-                    # Check if updating existing member
-                    is_update = name_key in members
-                    
-                    members[name_key] = {
-                        "name": st.session_state.extracted_name,  # Keep original capitalization
-                        "atk": int(ext_atk),
-                        "def": int(ext_def),
-                        "updated_at": get_utc_timestamp()
-                    }
-                    save_members(members)
-                    
-                    # Clear session state
-                    st.session_state.show_confirmation = False
-                    st.session_state.pop('extracted_data', None)
-                    st.session_state.pop('extracted_name', None)
-                    
-                    if is_update:
-                        st.success(f"✅ Updated {st.session_state.extracted_name}!")
-                    else:
-                        st.success(f"✅ Added {st.session_state.extracted_name}!")
-                    st.rerun()
-            
-            with col_b:
-                if st.button("❌ Cancel", key="cancel_btn"):
-                    st.session_state.show_confirmation = False
-                    st.session_state.pop('extracted_data', None)
-                    st.session_state.pop('extracted_name', None)
-                    st.rerun()
-    
-    st.markdown("---")
-    
-    # Members list section (completely separate from forms)
-    st.subheader("👥 Current Members")
-    
-    if not members:
-        st.info("No members added yet. Add your first member!")
-    else:
-        # Display members in a table-like format
-        # Sort by name for consistent display
-        sorted_members = sorted(members.items())
-        
-        for name_key, member in sorted_members:
-            cols = st.columns([3, 1, 1, 1])
-            
-            with cols[0]:
-                st.write(f"**{member['name']}**")
-                # Display timestamp if available
-                if 'updated_at' in member:
-                    st.caption(f"🕒 {member['updated_at']}")
-                else:
-                    st.caption("🕒 No timestamp")
-            with cols[1]:
-                st.write(f"⚔️ {format_stat(member['atk'])}")
-            with cols[2]:
-                st.write(f"🛡️ {format_stat(member['def'])}")
-            with cols[3]:
-                if st.button("❌", key=f"delete_{name_key}"):
-                    # Store which member to delete in session state
-                    st.session_state.delete_pending = name_key
-                    st.session_state.show_delete_dialog = True
-            
-            st.markdown("---")
-        
-        # Show delete confirmation dialog
-        if st.session_state.get('show_delete_dialog', False):
-            st.markdown("---")
-            st.warning(f"⚠️ Confirm deletion of **{members[st.session_state.delete_pending]['name']}**")
-            
-            secret_input = st.text_input(
-                "Enter secret key to delete:", 
-                type="password",
-                key="delete_secret_input"
-            )
-            
-            col_confirm, col_cancel = st.columns(2)
-            
-            with col_confirm:
-                if st.button("🗑️ Confirm Delete", type="primary", key="confirm_delete_btn"):
-                    if secret_input == DELETE_SECRET_KEY:
-                        deleted_name = members[st.session_state.delete_pending]['name']
-                        del members[st.session_state.delete_pending]
-                        save_members(members)
-                        st.session_state.show_delete_dialog = False
-                        st.session_state.pop('delete_pending', None)
-                        st.success(f"✅ Deleted {deleted_name}")
-                        st.rerun()
-                    else:
-                        st.error("❌ Invalid secret key!")
-            
-            with col_cancel:
-                if st.button("❌ Cancel", key="cancel_delete_btn"):
-                    st.session_state.show_delete_dialog = False
-                    st.session_state.pop('delete_pending', None)
-                    st.rerun()
-    
-    # Display JSON data at the bottom (optional, for debugging)
-    with st.expander("📄 View Raw JSON Data"):
-        st.json(members)
-
-if __name__ == "__main__":
-    main()
+        render_clan_manager()
