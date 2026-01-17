@@ -61,20 +61,20 @@ def calculate_total_power_lite(members, mode, clan_total_power):
     remaining_power = (clan_total_power - major_power_raw) * 1.8
     return (major_power + remaining_power) * BIAS_VALUE
 
-def render_clan_manager():
+def render_clan_manager(tab_id):
     """Render the main clan manager interface"""
     # Mode toggle and calculation mode
     st.markdown("---")
     col1, col2, col3 = st.columns([2, 1, 2])
     
     with col1:
-        if st.toggle("Lite Mode", value=(st.session_state.calc_mode == 'Lite'), key="calc_mode_toggle"):
+        if st.toggle("Lite Mode", value=(st.session_state.calc_mode == 'Lite'), key=f"calc_mode_toggle_{tab_id}"):
             st.session_state.calc_mode = 'Lite'
         else:
             st.session_state.calc_mode = 'Full'
     
     with col2:
-        if st.toggle("Switch ATK/DEF", value=(st.session_state.clan1_mode == 'DEF')):
+        if st.toggle("Switch ATK/DEF", value=(st.session_state.clan1_mode == 'DEF'), key=f"atk_def_toggle_{tab_id}"):
             st.session_state.clan1_mode = 'DEF'
         else:
             st.session_state.clan1_mode = 'ATK'
@@ -101,7 +101,7 @@ def render_clan_manager():
         with h_col2:
             if len(st.session_state.clan1_members) > 0:
                 st.write("")
-                if st.button("🗑️ Clear All", use_container_width=True, key="clear_top_1"):
+                if st.button("🗑️ Clear All", use_container_width=True, key=f"clear_top_1_{tab_id}"):
                     st.session_state.clan1_members = []
                     st.rerun()
         
@@ -111,8 +111,8 @@ def render_clan_manager():
                 "Total Clan Power", 
                 min_value=0, 
                 value=st.session_state.clan1_total_power,
-                key="clan1_total_input",
-                on_change=lambda: setattr(st.session_state, 'clan1_total_power', st.session_state.clan1_total_input)
+                key=f"clan1_total_input_{tab_id}",
+                on_change=lambda: setattr(st.session_state, 'clan1_total_power', st.session_state[f'clan1_total_input_{tab_id}'])
             )
         
         # Add member form
@@ -120,15 +120,15 @@ def render_clan_manager():
             if st.session_state.calc_mode == 'Full':
                 c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
                 with c1:
-                    race1 = st.selectbox("Race", ["Dog", "Cat", "Frog"], key="race1")
+                    race1 = st.selectbox("Race", ["Dog", "Cat", "Frog"], key=f"race1_{tab_id}")
                 with c2:
-                    power1 = st.number_input("Power", min_value=1, value=100, key="power1")
+                    power1 = st.number_input("Power", min_value=1, value=100, key=f"power1_{tab_id}")
                 with c3:
-                    level1 = st.number_input("Level", min_value=1, value=1, key="level1")
+                    level1 = st.number_input("Level", min_value=1, value=1, key=f"level1_{tab_id}")
                 with c4:
                     st.write("")
                     st.write("")
-                    if st.button("Add", use_container_width=True, key="add1"):
+                    if st.button("Add", use_container_width=True, key=f"add1_{tab_id}"):
                         st.session_state.clan1_members.append({
                             'race': race1,
                             'power': power1,
@@ -140,11 +140,11 @@ def render_clan_manager():
                 major_race = "Cat" if st.session_state.clan1_mode == 'ATK' else "Dog"
                 c1, c2 = st.columns([2, 1])
                 with c1:
-                    power1_lite = st.number_input("Power", min_value=1, value=100, key="power1_lite")
+                    power1_lite = st.number_input("Power", min_value=1, value=100, key=f"power1_lite_{tab_id}")
                 with c2:
                     st.write("")
                     st.write("")
-                    if st.button("Add", use_container_width=True, key="add1_lite"):
+                    if st.button("Add", use_container_width=True, key=f"add1_lite_{tab_id}"):
                         st.session_state.clan1_members.append({
                             'race': major_race,
                             'power': power1_lite
@@ -166,23 +166,23 @@ def render_clan_manager():
                     with c1:
                         new_race = st.selectbox("", ["Dog", "Cat", "Frog"], 
                                                index=["Dog", "Cat", "Frog"].index(member['race']),
-                                               key=f"race1_{idx}",
+                                               key=f"race1_{idx}_{tab_id}",
                                                label_visibility="collapsed")
                     with c2:
                         new_power = st.number_input("", min_value=1, 
                                                    value=member['power'],
-                                                   key=f"power1_{idx}",
+                                                   key=f"power1_{idx}_{tab_id}",
                                                    label_visibility="collapsed")
                     with c3:
                         new_level = st.number_input("", min_value=1, 
                                                    value=member['level'],
-                                                   key=f"level1_{idx}",
+                                                   key=f"level1_{idx}_{tab_id}",
                                                    label_visibility="collapsed")
                     with c4:
                         st.markdown(f"<div style='padding-top: 8px;'>{st.session_state.clan1_mode} Power: <b>{actual_power:.1f}</b></div>", 
                                    unsafe_allow_html=True)
                     with c5:
-                        if st.button("🗑️", key=f"delete1_{idx}", use_container_width=True):
+                        if st.button("🗑️", key=f"delete1_{idx}_{tab_id}", use_container_width=True):
                             st.session_state.clan1_members.pop(idx)
                             st.rerun()
                     
@@ -206,13 +206,13 @@ def render_clan_manager():
                     with c1:
                         new_power = st.number_input("", min_value=1, 
                                                    value=member['power'],
-                                                   key=f"power1_lite_{idx}",
+                                                   key=f"power1_lite_{idx}_{tab_id}",
                                                    label_visibility="collapsed")
                     with c2:
                         st.markdown(f"<div style='padding-top: 8px;'>{major_race} - {st.session_state.clan1_mode} Power: <b>{actual_power:.1f}</b></div>", 
                                    unsafe_allow_html=True)
                     with c3:
-                        if st.button("🗑️", key=f"delete1_lite_{idx}", use_container_width=True):
+                        if st.button("🗑️", key=f"delete1_lite_{idx}_{tab_id}", use_container_width=True):
                             st.session_state.clan1_members.pop(idx)
                             st.rerun()
                     
@@ -243,7 +243,7 @@ def render_clan_manager():
         with h_col2:
             if len(st.session_state.clan2_members) > 0:
                 st.write("")
-                if st.button("🗑️ Clear All", use_container_width=True, key="clear_top_2"):
+                if st.button("🗑️ Clear All", use_container_width=True, key=f"clear_top_2_{tab_id}"):
                     st.session_state.clan2_members = []
                     st.rerun()
         
@@ -253,8 +253,8 @@ def render_clan_manager():
                 "Total Clan Power", 
                 min_value=0, 
                 value=st.session_state.clan2_total_power,
-                key="clan2_total_input",
-                on_change=lambda: setattr(st.session_state, 'clan2_total_power', st.session_state.clan2_total_input)
+                key=f"clan2_total_input_{tab_id}",
+                on_change=lambda: setattr(st.session_state, 'clan2_total_power', st.session_state[f'clan2_total_input_{tab_id}'])
             )
         
         # Add member form
@@ -262,15 +262,15 @@ def render_clan_manager():
             if st.session_state.calc_mode == 'Full':
                 c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
                 with c1:
-                    race2 = st.selectbox("Race", ["Dog", "Cat", "Frog"], key="race2")
+                    race2 = st.selectbox("Race", ["Dog", "Cat", "Frog"], key=f"race2_{tab_id}")
                 with c2:
-                    power2 = st.number_input("Power", min_value=1, value=100, key="power2")
+                    power2 = st.number_input("Power", min_value=1, value=100, key=f"power2_{tab_id}")
                 with c3:
-                    level2 = st.number_input("Level", min_value=1, value=1, key="level2")
+                    level2 = st.number_input("Level", min_value=1, value=1, key=f"level2_{tab_id}")
                 with c4:
                     st.write("")
                     st.write("")
-                    if st.button("Add", use_container_width=True, key="add2"):
+                    if st.button("Add", use_container_width=True, key=f"add2_{tab_id}"):
                         st.session_state.clan2_members.append({
                             'race': race2,
                             'power': power2,
@@ -282,11 +282,11 @@ def render_clan_manager():
                 major_race = "Cat" if clan2_mode == 'ATK' else "Dog"
                 c1, c2 = st.columns([2, 1])
                 with c1:
-                    power2_lite = st.number_input("Power", min_value=1, value=100, key="power2_lite")
+                    power2_lite = st.number_input("Power", min_value=1, value=100, key=f"power2_lite_{tab_id}")
                 with c2:
                     st.write("")
                     st.write("")
-                    if st.button("Add", use_container_width=True, key="add2_lite"):
+                    if st.button("Add", use_container_width=True, key=f"add2_lite_{tab_id}"):
                         st.session_state.clan2_members.append({
                             'race': major_race,
                             'power': power2_lite
@@ -307,23 +307,23 @@ def render_clan_manager():
                     with c1:
                         new_race = st.selectbox("", ["Dog", "Cat", "Frog"], 
                                                index=["Dog", "Cat", "Frog"].index(member['race']),
-                                               key=f"race2_{idx}",
+                                               key=f"race2_{idx}_{tab_id}",
                                                label_visibility="collapsed")
                     with c2:
                         new_power = st.number_input("", min_value=1, 
                                                    value=member['power'],
-                                                   key=f"power2_{idx}",
+                                                   key=f"power2_{idx}_{tab_id}",
                                                    label_visibility="collapsed")
                     with c3:
                         new_level = st.number_input("", min_value=1, 
                                                    value=member['level'],
-                                                   key=f"level2_{idx}",
+                                                   key=f"level2_{idx}_{tab_id}",
                                                    label_visibility="collapsed")
                     with c4:
                         st.markdown(f"<div style='padding-top: 8px;'>{clan2_mode} Power: <b>{actual_power:.1f}</b></div>", 
                                    unsafe_allow_html=True)
                     with c5:
-                        if st.button("🗑️", key=f"delete2_{idx}", use_container_width=True):
+                        if st.button("🗑️", key=f"delete2_{idx}_{tab_id}", use_container_width=True):
                             st.session_state.clan2_members.pop(idx)
                             st.rerun()
                     
@@ -346,13 +346,13 @@ def render_clan_manager():
                     with c1:
                         new_power = st.number_input("", min_value=1, 
                                                    value=member['power'],
-                                                   key=f"power2_lite_{idx}",
+                                                   key=f"power2_lite_{idx}_{tab_id}",
                                                    label_visibility="collapsed")
                     with c2:
                         st.markdown(f"<div style='padding-top: 8px;'>{major_race} - {clan2_mode} Power: <b>{actual_power:.1f}</b></div>", 
                                    unsafe_allow_html=True)
                     with c3:
-                        if st.button("🗑️", key=f"delete2_lite_{idx}", use_container_width=True):
+                        if st.button("🗑️", key=f"delete2_lite_{idx}_{tab_id}", use_container_width=True):
                             st.session_state.clan2_members.pop(idx)
                             st.rerun()
                     
@@ -376,7 +376,7 @@ with col1:
 tab1, tab2 = st.tabs(["Tab 1", "Tab 2"])
 
 with tab1:
-    render_clan_manager()
+    render_clan_manager("tab1")
 
 with tab2:
-    render_clan_manager()
+    render_clan_manager("tab2")
