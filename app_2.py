@@ -5,8 +5,6 @@ import pandas as pd
 st.set_page_config(page_title="Clan Manager", layout="wide")
 
 # Initialize session state
-if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
 if 'clan1_members' not in st.session_state:
     st.session_state.clan1_members = []
 if 'clan2_members' not in st.session_state:
@@ -19,10 +17,6 @@ if 'clan1_total_power' not in st.session_state:
     st.session_state.clan1_total_power = 0
 if 'clan2_total_power' not in st.session_state:
     st.session_state.clan2_total_power = 0
-
-# Login credentials
-ADMIN_ID = "admin"
-ADMIN_PIN = "919399"
 
 # Bias value
 BIAS_VALUE = 0.84
@@ -372,40 +366,17 @@ def render_clan_manager():
         else:
             st.info("No members yet. Add members using the form above.")
 
-# Login page
-if not st.session_state.logged_in:
-    st.title("🛡️ Clan Manager - Login")
-    
-    col1, col2, col3 = st.columns([1, 2, 1])
-    
-    with col2:
-        st.markdown("### Please Login")
-        user_id = st.text_input("User ID", key="login_id")
-        user_pin = st.text_input("PIN Code", type="password", max_chars=6, key="login_pin")
-        
-        if st.button("Login", use_container_width=True):
-            if user_id == ADMIN_ID and user_pin == ADMIN_PIN:
-                st.session_state.logged_in = True
-                st.rerun()
-            else:
-                st.error("Invalid credentials!")
-
 # Main app with tabs
-else:
-    # Header with logout
-    col1, col2 = st.columns([6, 1])
-    with col1:
-        st.title("⚔️ Clan Manager")
-    with col2:
-        if st.button("Logout"):
-            st.session_state.logged_in = False
-            st.rerun()
-    
-    # Create tabs
-    tab1, tab2 = st.tabs(["Tab 1", "Tab 2"])
-    
-    with tab1:
-        render_clan_manager()
-    
-    with tab2:
-        render_clan_manager()
+# Header with logout
+col1, col2 = st.columns([6, 1])
+with col1:
+    st.title("⚔️ Clan Manager")
+
+# Create tabs
+tab1, tab2 = st.tabs(["Tab 1", "Tab 2"])
+
+with tab1:
+    render_clan_manager()
+
+with tab2:
+    render_clan_manager()
