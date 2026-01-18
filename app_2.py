@@ -20,17 +20,17 @@ BIAS_VALUE = 0.84
 def calculate_power(race, base_power, mode):
     """Calculate actual power based on race and mode (ATK/DEF)"""
     if race == "Frog":
-        return base_power * 1.5
+        return base_power * 2.5
     elif race == "Cat":
         if mode == "ATK":
-            return base_power * 5.2
+            return base_power * 5
         else:
             return base_power * 2.5
     elif race == "Dog":
         if mode == "ATK":
             return base_power * 2.5
         else:
-            return base_power * 5.2
+            return base_power * 5
     return base_power
 
 def calculate_total_power_full(members, mode):
