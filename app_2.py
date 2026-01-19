@@ -632,15 +632,97 @@ def render_member_stats():
                 
                 st.markdown("---")
                 
-                # Download button
+                # Import/Export section
+                st.header("📁 Import/Export")
+                
+                # Export button
                 if members:
-                    json_str = json.dumps(members, indent=2)
+                    export_data = json.dumps(members, indent=2)
                     st.download_button(
-                        label="📥 Download Clan Data",
-                        data=json_str,
+                        label="📥 Export Clan Data",
+                        data=export_data,
                         file_name=f"{current_clan['name']}_data_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json",
-                        mime="application/json"
+                        mime="application/json",
+                        help="Download this clan's member data as JSON file"
                     )
+                else:
+                    st.info("No members to export")
+                
+                # Import button
+                uploaded_json = st.file_uploader(
+                    "📤 Import Clan Data",
+                    type=['json'],
+                    help="Upload a JSON file to import members into this clan",
+                    key="upload_clan_json"
+                )
+                
+                if uploaded_json is not None:
+                    try:
+                        import_data = json.load(uploaded_json)
+                        
+                        if not isinstance(import_data, dict):
+                            st.error("❌ Invalid format! JSON must be an object/dictionary.")
+                        else:
+                            st.write("**Preview:**")
+                            st.json(import_data)
+                            
+                            import_secret = st.text_input(
+                                "Enter secret key to import:",
+                                type="password",
+                                key="import_secret_input"
+                            )
+                            
+                            col_import, col_cancel = st.columns(2)
+                            
+                            with col_import:
+                                if st.button("✅ Import Data", type="primary", key="import_btn"):
+                                    if import_secret == SECRET_KEY:
+                                        st.session_state.import_data = import_data
+                                        st.session_state.show_import_options = True
+                                    else:
+                                        st.error("❌ Invalid secret key!")
+                            
+                            with col_cancel:
+                                if st.button("❌ Cancel Import", key="cancel_import_btn"):
+                                    st.rerun()
+                    
+                    except json.JSONDecodeError as e:
+                        st.error(f"❌ Invalid JSON file: {str(e)}")
+                    except Exception as e:
+                        st.error(f"❌ Error reading file: {str(e)}")
+                
+                # Show import options dialog
+                if st.session_state.get('show_import_options', False):
+                    st.markdown("---")
+                    st.subheader("Import Options")
+                    
+                    import_mode = st.radio(
+                        "How would you like to import?",
+                        ["Merge (keep existing + add new)", "Replace (overwrite all members)"],
+                        key="import_mode_radio"
+                    )
+                    
+                    col_confirm, col_cancel = st.columns(2)
+                    
+                    with col_confirm:
+                        if st.button("Confirm Import", type="primary", key="confirm_import_btn"):
+                            if import_mode == "Replace (overwrite all members)":
+                                members = st.session_state.import_data.copy()
+                            else:
+                                members.update(st.session_state.import_data)
+                            
+                            current_clan['members'] = members
+                            save_clans(clans)
+                            st.session_state.show_import_options = False
+                            st.session_state.pop('import_data', None)
+                            st.success(f"✅ Data imported successfully! ({len(st.session_state.import_data)} members)")
+                            st.rerun()
+                    
+                    with col_cancel:
+                        if st.button("Cancel", key="cancel_import_options_btn"):
+                            st.session_state.show_import_options = False
+                            st.session_state.pop('import_data', None)
+                            st.rerun()
                 
                 st.markdown("---")
                 
