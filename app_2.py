@@ -706,6 +706,8 @@ def render_member_stats():
                     
                     with col_confirm:
                         if st.button("Confirm Import", type="primary", key="confirm_import_btn"):
+                            import_count = len(st.session_state.import_data)
+                            
                             if import_mode == "Replace (overwrite all members)":
                                 members = st.session_state.import_data.copy()
                             else:
@@ -715,7 +717,7 @@ def render_member_stats():
                             save_clans(clans)
                             st.session_state.show_import_options = False
                             st.session_state.pop('import_data', None)
-                            st.success(f"✅ Data imported successfully! ({len(st.session_state.import_data)} members)")
+                            st.success(f"✅ Data imported successfully! ({import_count} members)")
                             st.rerun()
                     
                     with col_cancel:
