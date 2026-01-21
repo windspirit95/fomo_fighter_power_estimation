@@ -15,12 +15,12 @@ st.set_page_config(page_title="Clan Manager", layout="wide")
 # ============================================================================
 
 # Bias value for power calculation
-BIAS_VALUE = 0.84
+BIAS_VALUE = 0.95
 
 def calculate_power(race, base_power, mode):
     """Calculate actual power based on race and mode (ATK/DEF)"""
     if race == "Frog":
-        return base_power * 2.5
+        return base_power * 3
     elif race == "Cat":
         if mode == "ATK":
             return base_power * 5
