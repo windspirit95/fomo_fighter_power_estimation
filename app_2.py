@@ -54,7 +54,7 @@ def calculate_major_race_power(members, mode):
 def calculate_total_power_lite(members, mode, clan_total_power):
     """Calculate total clan power for Lite mode"""
     major_power, major_power_raw = calculate_major_race_power(members, mode)
-    remaining_power = (clan_total_power - major_power_raw) * 1.8
+    remaining_power = (clan_total_power - major_power_raw) * 2.7
     return (major_power + remaining_power) * BIAS_VALUE
 
 # ============================================================================
